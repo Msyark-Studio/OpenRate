@@ -1,4 +1,8 @@
-# OpenRate
+<div align="center">
+<img src="static/favicon.ico" width="15%" alt="OpenRate">
+<h1>OpenRate</h1>
+
+<p>收集用户反馈，从未如此简单。</p>
 
 OpenRate 是一个通用的评分数据收集与可视化系统。它提供 RESTful API 用于接收评分数据（1-5 星），并提供一个功能完善的管理面板用于查看统计图表、管理评分记录和用户账户。系统支持**访客模式**、**深色/浅色主题**自动切换，并采用 SQLite 作为数据库，方便部署。
 

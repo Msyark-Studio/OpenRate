@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}系统设置 - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2><i class="fas fa-cog"></i> 系统设置</h2>
+        <p class="subtitle">修改系统配置项</p>
+    </div>
+
+    <div class="admin-grid">
+        <div class="admin-card wide">
+            <h3><i class="fas fa-sliders-h"></i> 常规设置</h3>
+            <form method="POST" class="user-form">
+                <div class="form-group">
+                    <label for="site_title">站点标题</label>
+                    <input type="text" id="site_title" name="site_title" value="{{ site_title }}" class="form-control">
+                    <small class="form-text">显示在导航栏的站点名称</small>
+                </div>
+                <div class="form-group">
+                    <label for="site_icon">站点图标 (FontAwesome)</label>
+                    <input type="text" id="site_icon" name="site_icon" value="{{ site_icon }}" class="form-control" placeholder="fas fa-star">
+                    <div class="preview-icon" style="margin-top: 10px;">
+                        <i class="{{ site_icon }}" style="font-size: 24px;"></i> 预览
+                    </div>
+                    <small class="form-text">输入 FontAwesome 图标类名，例如 <code>fas fa-book</code>、<code>fas fa-chart-line</code></small>
+                </div>
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="guest_mode" {% if guest_mode %}checked{% endif %}>
+                        <span>启用访客模式</span>
+                    </label>
+                    <small class="form-text">允许未登录用户查看统计数据（总评分、平均分、图表），但无法查看详细记录和执行操作。</small>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> 保存设置
+                    </button>
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> 返回
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

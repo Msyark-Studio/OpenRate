@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+
+{% block title %}仪表板 - {{ site_title }}{% endblock %}
+
+{% block content %}
+<div class="dashboard-container">
+    <!-- 数据概览 -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-star"></i></div>
+            <div class="stat-content">
+                <h3 id="total-ratings">0</h3>
+                <p>总评分数量</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+            <div class="stat-content">
+                <h3 id="avg-rating">0.00</h3>
+                <p>平均评分</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-calendar-day"></i></div>
+            <div class="stat-content">
+                <h3 id="today-ratings">0</h3>
+                <p>今日评分</p>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon"><i class="fas fa-user"></i></div>
+            <div class="stat-content">
+                <h3 id="yesterday-ratings">0</h3>
+                <p>昨日评分</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- 图表区域 -->
+    <div class="charts-grid">
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3><i class="fas fa-chart-pie"></i> 评分分布</h3>
+                <div class="chart-controls">
+                    <select id="chart-type" class="form-control-sm">
+                        <option value="pie">饼图</option>
+                        <option value="bar">柱状图</option>
+                    </select>
+                </div>
+            </div>
+            <canvas id="ratingDistributionChart" class="chart-container"></canvas>
+        </div>
+        <div class="chart-card">
+            <div class="chart-header">
+                <h3><i class="fas fa-chart-line"></i> 评分趋势</h3>
+                <div class="chart-controls">
+                    <select id="trend-type" class="form-control-sm">
+                        <option value="line">折线图</option>
+                        <option value="bar">柱状图</option>
+                    </select>
+                </div>
+            </div>
+            <canvas id="trendChart" class="chart-container"></canvas>
+        </div>
+    </div>
+
+    <!-- 最近评分记录 - 游客模式不显示 -->
+    {% if not is_guest %}
+    <div class="data-section">
+        <div class="section-header">
+            <h3><i class="fas fa-history"></i> 最近评分记录</h3>
+            <div class="section-controls">
+                <div class="date-range">
+                    <input type="date" id="date-from" class="form-control form-control-sm">
+                    <span>至</span>
+                    <input type="date" id="date-to" class="form-control form-control-sm">
+                    <button onclick="applyFilter()" class="btn btn-primary"><i class="fas fa-filter"></i> 筛选</button>
+                    <button onclick="clearFilter()" class="btn btn-secondary"><i class="fas fa-times"></i> 清除</button>
+                </div>
+            </div>
+        </div>
+        <div class="table-responsive">
+            <table class="data-table" id="ratings-table">
+                <thead>
+                    <tr><th>ID</th><th>评分</th><th>时间</th><th>IP地址</th><th>记录时间</th>{% if is_admin %}<th>操作</th>{% endif %}</tr>
+                </thead>
+                <tbody id="ratings-body"></tbody>
+            </table>
+        </div>
+        <div class="pagination">
+            <button onclick="prevPage()" class="btn btn-outline"><i class="fas fa-chevron-left"></i> 上一页</button>
+            <span id="page-info">第 1 页，共 0 页</span>
+            <button onclick="nextPage()" class="btn btn-outline">下一页 <i class="fas fa-chevron-right"></i></button>
+        </div>
+    </div>
+    {% else %}
+    <!-- 游客模式提示 -->
+    <div class="card" style="text-align: center; padding: 40px; margin-top: 30px;">
+        <i class="fas fa-eye" style="font-size: 48px; color: var(--text-light); margin-bottom: 16px;"></i>
+        <h3>访客模式</h3>
+        <p>当前为访客模式，仅可查看统计数据。如需查看详细评分记录，请<a href="{{ url_for('login') }}">登录</a>。</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+let currentPage = 1;
+let totalPages = 0;
+const perPage = 20;
+let ratingDistributionChart = null;
+let trendChart = null;
+const FILTER_STORAGE_KEY = 'rating_filter_dates';
+
+function loadFilterState() {
+    const saved = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (saved) {
+        const filter = JSON.parse(saved);
+        document.getElementById('date-from').value = filter.dateFrom || '';
+        document.getElementById('date-to').value = filter.dateTo || '';
+        return filter;
+    }
+    return { dateFrom: '', dateTo: '' };
+}
+function saveFilterState(dateFrom, dateTo) {
+    localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ dateFrom: dateFrom || '', dateTo: dateTo || '', savedAt: new Date().toISOString() }));
+}
+function clearFilterState() {
+    localStorage.removeItem(FILTER_STORAGE_KEY);
+    document.getElementById('date-from').value = '';
+    document.getElementById('date-to').value = '';
+    applyFilter();
+}
+function applyFilter() {
+    const dateFrom = document.getElementById('date-from').value;
+    const dateTo = document.getElementById('date-to').value;
+    if (dateFrom && dateTo && dateFrom > dateTo) {
+        alert('开始日期不能晚于结束日期！');
+        return;
+    }
+    saveFilterState(dateFrom, dateTo);
+    currentPage = 1;
+    loadDashboard();
+    loadRatings();
+}
+function clearFilter() { clearFilterState(); }
+
+async function loadDashboard() {
+    try {
+        const dateFrom = document.getElementById('date-from') ? document.getElementById('date-from').value : '';
+        const dateTo = document.getElementById('date-to') ? document.getElementById('date-to').value : '';
+        let url = '/api/dashboard';
+        const params = new URLSearchParams();
+        if (dateFrom) params.append('date_from', dateFrom);
+        if (dateTo) params.append('date_to', dateTo);
+        if (params.toString()) url += '?' + params.toString();
+        const response = await axios.get(url);
+        if (response.data.success) {
+            const data = response.data.dashboard;
+            document.getElementById('total-ratings').textContent = data.total.count.toLocaleString();
+            document.getElementById('avg-rating').textContent = data.total.avg_rating.toFixed(2);
+            document.getElementById('today-ratings').textContent = data.today.count.toLocaleString();
+            document.getElementById('yesterday-ratings').textContent = data.yesterday.count.toLocaleString();
+            drawRatingDistribution(data.rating_distribution);
+            drawTrendChart(data.chart_data || data.weekly_data);
+        }
+    } catch (error) {
+        console.error('加载仪表板数据失败:', error);
+        alert('加载数据失败，请刷新页面重试');
+    }
+}
+
+function drawRatingDistribution(data) {
+    const ctx = document.getElementById('ratingDistributionChart').getContext('2d');
+    const chartType = document.getElementById('chart-type').value;
+    if (ratingDistributionChart) ratingDistributionChart.destroy();
+    const labels = data.map(item => `${item.rating} 星`);
+    const counts = data.map(item => item.count);
+    const total = counts.reduce((a, b) => a + b, 0);
+    const percentages = counts.map(count => total > 0 ? ((count / total) * 100).toFixed(1) + '%' : '0%');
+    const displayLabels = labels.map((label, idx) => `${label}\n${counts[idx]} 条 (${percentages[idx]})`);
+    const colors = ['#ef4444', '#f59e0b', '#10b981', '#0ea5e9', '#8b5cf6'];
+    ratingDistributionChart = new Chart(ctx, {
+        type: chartType,
+        data: { labels: displayLabels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: 1, borderColor: 'var(--border-color)' }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { color: 'var(--text-color)', font: { size: 12 }, padding: 15 } }, tooltip: { callbacks: { label: function(context) { const label = context.label || ''; const value = context.raw || 0; const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0; return `${label.split('\n')[0]}: ${value} 条 (${percentage}%)`; } } } } }
+    });
+}
+
+function drawTrendChart(data) {
+    const ctx = document.getElementById('trendChart').getContext('2d');
+    const chartType = document.getElementById('trend-type').value;
+    if (trendChart) trendChart.destroy();
+    if (data.length === 0) {
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        ctx.fillStyle = 'var(--text-light)';
+        ctx.font = '16px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('暂无数据', ctx.canvas.width / 2, ctx.canvas.height / 2);
+        return;
+    }
+    const dates = data.map(item => { const d = new Date(item.date); return `${d.getMonth()+1}/${d.getDate()}`; });
+    const counts = data.map(item => item.count);
+    const avgRatings = data.map(item => item.avg_rating);
+    const isLine = chartType === 'line';
+    trendChart = new Chart(ctx, {
+        type: isLine ? 'line' : 'bar',
+        data: {
+            labels: dates,
+            datasets: [
+                { label: '评分数量', data: counts, backgroundColor: isLine ? 'rgba(59, 130, 246, 0.1)' : 'rgba(59, 130, 246, 0.5)', borderColor: '#3b82f6', borderWidth: isLine ? 3 : 0, fill: isLine, tension: 0.3, yAxisID: 'y-count' },
+                { label: '平均评分', data: avgRatings, backgroundColor: isLine ? 'rgba(16, 185, 129, 0.1)' : 'rgba(16, 185, 129, 0.5)', borderColor: '#10b981', borderWidth: isLine ? 3 : 0, fill: isLine, tension: 0.3, yAxisID: 'y-rating' }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { grid: { color: 'var(--border-color)' }, ticks: { color: 'var(--text-color)', maxRotation: 45, minRotation: 45 } },
+                'y-count': { type: 'linear', position: 'left', title: { display: true, text: '评分数量', color: 'var(--text-color)' }, grid: { color: 'var(--border-color)' }, ticks: { color: 'var(--text-color)' } },
+                'y-rating': { type: 'linear', position: 'right', title: { display: true, text: '平均评分', color: 'var(--text-color)' }, grid: { drawOnChartArea: false }, min: 1, max: 5, ticks: { color: 'var(--text-color)', stepSize: 0.5 } }
+            },
+            plugins: { legend: { labels: { color: 'var(--text-color)' } }, tooltip: { mode: 'index', intersect: false, callbacks: { label: function(context) { let label = context.dataset.label || ''; label += ': '; if (context.datasetIndex === 0) label += context.raw + ' 条'; else label += context.raw.toFixed(2); return label; } } } }
+        }
+    });
+}
+
+async function loadRatings() {
+    const dateFrom = document.getElementById('date-from') ? document.getElementById('date-from').value : '';
+    const dateTo = document.getElementById('date-to') ? document.getElementById('date-to').value : '';
+    try {
+        const response = await axios.get('/api/ratings', { params: { page: currentPage, per_page: perPage, date_from: dateFrom, date_to: dateTo } });
+        if (response.data.success) {
+            const ratings = response.data.data;
+            const pagination = response.data.pagination;
+            const tbody = document.getElementById('ratings-body');
+            tbody.innerHTML = '';
+            if (ratings.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="{% if is_admin %}6{% else %}5{% endif %}" class="text-center"><i class="fas fa-inbox" style="font-size: 2rem; color: var(--text-light); margin-bottom: 10px; opacity: 0.5;"></i><p>暂无评分记录</p></td></tr>`;
+            } else {
+                ratings.forEach(r => {
+                    const date = new Date(r.timestamp);
+                    const reqTime = new Date(r.request_time);
+                    let row = `<tr>
+                        <td><strong>#${r.id}</strong></td>
+                        <td><span class="rating-badge rating-${r.rating}">${r.rating} 星</span></td>
+                        <td>${date.toLocaleString('zh-CN')}</td>
+                        <td>${r.ip_address || 'N/A'}</td>
+                        <td>${reqTime.toLocaleString('zh-CN')}</td>`;
+                    {% if is_admin %}
+                    row += `<td><div class="action-buttons"><button onclick="editRating(${r.id}, ${r.rating})" class="btn btn-warning btn-sm" title="编辑评分"><i class="fas fa-edit"></i></button><button onclick="deleteRating(${r.id})" class="btn btn-danger btn-sm" title="删除记录"><i class="fas fa-trash"></i></button></div></td>`;
+                    {% endif %}
+                    row += `</tr>`;
+                    tbody.insertAdjacentHTML('beforeend', row);
+                });
+            }
+            totalPages = pagination.total_pages;
+            document.getElementById('page-info').textContent = `第 ${currentPage} 页，共 ${totalPages} 页，共 ${pagination.total.toLocaleString()} 条记录`;
+            const prevBtn = document.querySelector('.pagination button:first-child');
+            const nextBtn = document.querySelector('.pagination button:last-child');
+            if (prevBtn && nextBtn) {
+                prevBtn.disabled = currentPage <= 1;
+                nextBtn.disabled = currentPage >= totalPages;
+            }
+        }
+    } catch (error) {
+        console.error('加载评分数据失败:', error);
+        document.getElementById('ratings-body').innerHTML = `<tr><td colspan="{% if is_admin %}6{% else %}5{% endif %}" class="text-center"><i class="fas fa-exclamation-triangle" style="font-size: 2rem; color: var(--danger-color); margin-bottom: 10px;"></i><p>加载数据失败</p><button onclick="loadRatings()" class="btn btn-primary" style="margin-top: 15px;"><i class="fas fa-redo"></i> 重试</button></td></tr>`;
+    }
+}
+
+async function editRating(id, currentRating) {
+    const newRating = prompt('请输入新的评分 (1-5):', currentRating);
+    if (newRating && newRating >= 1 && newRating <= 5) {
+        try {
+            const response = await axios.put(`/api/ratings/${id}`, { rating: newRating });
+            if (response.data.success) {
+                alert(response.data.message);
+                loadRatings();
+                loadDashboard();
+            }
+        } catch (error) {
+            alert('更新失败: ' + (error.response?.data?.error || error.message));
+        }
+    }
+}
+async function deleteRating(id) {
+    if (confirm('确定要删除这条评分记录吗？')) {
+        try {
+            const response = await axios.delete(`/api/ratings/${id}`);
+            if (response.data.success) {
+                alert(response.data.message);
+                loadRatings();
+                loadDashboard();
+            }
+        } catch (error) {
+            alert('删除失败: ' + (error.response?.data?.error || error.message));
+        }
+    }
+}
+function prevPage() { if (currentPage > 1) { currentPage--; loadRatings(); } }
+function nextPage() { if (currentPage < totalPages) { currentPage++; loadRatings(); } }
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadFilterState();
+    document.getElementById('chart-type').addEventListener('change', () => loadDashboard());
+    document.getElementById('trend-type').addEventListener('change', () => loadDashboard());
+    if (document.getElementById('date-from')) {
+        document.getElementById('date-from').addEventListener('keypress', e => { if (e.key === 'Enter') applyFilter(); });
+        document.getElementById('date-to').addEventListener('keypress', e => { if (e.key === 'Enter') applyFilter(); });
+    }
+    loadDashboard();
+    {% if not is_guest %}loadRatings();{% endif %}
+    setInterval(() => { loadDashboard(); {% if not is_guest %}loadRatings();{% endif %} }, 60000);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}用户管理 - 课本评分管理系统{% endblock %}
+
+{% block content %}
+<div class="admin-container">
+    <div class="admin-header">
+        <h2><i class="fas fa-users-cog"></i> 用户管理</h2>
+        <p class="subtitle">管理系统用户账户</p>
+    </div>
+
+    <div class="admin-grid">
+        <!-- 添加用户表单 -->
+        <div class="admin-card">
+            <h3><i class="fas fa-user-plus"></i> 添加新用户</h3>
+            <form method="POST" class="user-form">
+                <input type="hidden" name="action" value="add_user">
+                
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" required 
+                           placeholder="输入用户名" class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" required 
+                           placeholder="输入密码" minlength="6" class="form-control">
+                    <small class="form-text">密码长度至少6位</small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="checkbox-label">
+                        <input type="checkbox" name="is_admin" value="1">
+                        <span>设为管理员</span>
+                    </label>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> 添加用户
+                </button>
+            </form>
+        </div>
+
+        <!-- 修改密码表单 -->
+        <div class="admin-card" id="change-password-section" style="display: none;">
+            <h3><i class="fas fa-key"></i> 修改密码</h3>
+            <form method="POST" id="change-password-form" class="user-form">
+                <input type="hidden" name="action" value="change_password">
+                <input type="hidden" name="user_id" id="change-password-user-id">
+                
+                <div class="form-group">
+                    <label for="new_password">新密码</label>
+                    <input type="password" id="new_password_input" name="new_password" required 
+                           placeholder="输入新密码" minlength="6" class="form-control">
+                    <small class="form-text">密码长度至少6位</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="confirm_password">确认密码</label>
+                    <input type="password" id="confirm_password_input" name="confirm_password" required 
+                           placeholder="再次输入新密码" class="form-control">
+                </div>
+                
+                <div class="form-group">
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-save"></i> 修改密码
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="hideChangePasswordForm()">
+                        <i class="fas fa-times"></i> 取消
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 用户列表 -->
+    <div class="admin-card wide">
+        <div class="card-header">
+            <h3><i class="fas fa-users"></i> 用户列表</h3>
+            <div class="card-actions">
+                <button onclick="location.reload()" class="btn btn-refresh">
+                    <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="user-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>角色</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr>
+                        <td>{{ user[0] }}</td>
+                        <td>
+                            {% if user[0] == current_user_id %}
+                                <strong>{{ user[1] }} <span class="badge badge-current">当前</span></strong>
+                            {% else %}
+                                {{ user[1] }}
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if user[2] %}
+                                <span class="badge badge-admin">管理员</span>
+                            {% else %}
+                                <span class="badge badge-user">普通用户</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user[3] }}</td>
+                        <td>
+                            <div class="action-buttons">
+                                <button onclick="showChangePasswordForm({{ user[0] }}, '{{ user[1] }}')" 
+                                        class="btn btn-warning btn-sm" 
+                                        title="修改密码">
+                                    <i class="fas fa-key"></i>
+                                </button>
+                                
+                                {% if user[0] != current_user_id %}
+                                <form method="POST" class="d-inline">
+                                    <input type="hidden" name="action" value="delete_user">
+                                    <input type="hidden" name="user_id" value="{{ user[0] }}">
+                                    <button type="submit" class="btn btn-danger btn-sm" 
+                                            onclick="return confirm('确定要删除用户 {{ user[1] }} 吗？')"
+                                            title="删除用户">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                                {% else %}
+                                <a href="{{ url_for('change_password') }}" class="btn btn-info btn-sm" title="修改我的密码">
+                                    <i class="fas fa-user-edit"></i>
+                                </a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="table-info">
+            共 {{ users|length }} 个用户
+        </div>
+    </div>
+</div>
+
+<script>
+function showChangePasswordForm(userId, username) {
+    document.getElementById('change-password-section').style.display = 'block';
+    document.getElementById('change-password-user-id').value = userId;
+    
+    // 滚动到修改密码表单
+    document.getElementById('change-password-section').scrollIntoView({ behavior: 'smooth' });
+    
+    // 更新表单标题
+    document.querySelector('#change-password-section h3').innerHTML = 
+        `<i class="fas fa-key"></i> 修改用户密码: ${username}`;
+    
+    // 清空表单
+    document.getElementById('new_password_input').value = '';
+    document.getElementById('confirm_password_input').value = '';
+}
+
+function hideChangePasswordForm() {
+    document.getElementById('change-password-section').style.display = 'none';
+}
+
+// 表单验证
+document.getElementById('change-password-form').addEventListener('submit', function(e) {
+    const newPassword = document.getElementById('new_password_input').value;
+    const confirmPassword = document.getElementById('confirm_password_input').value;
+    
+    if (newPassword.length < 6) {
+        e.preventDefault();
+        alert('密码长度至少6位');
+        return false;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        e.preventDefault();
+        alert('两次输入的密码不一致');
+        return false;
+    }
+    
+    return true;
+});
+</script>
+{% endblock %}

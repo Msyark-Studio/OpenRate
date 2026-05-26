@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}系统初始化 - 课本评分管理系统{% endblock %}
+
+{% block content %}
+<div class="setup-container">
+    <div class="setup-card">
+        <div class="setup-header">
+            <h2><i class="fas fa-wrench"></i> 系统初始化配置</h2>
+            <p>首次运行，请设置管理员账户和系统标题</p>
+        </div>
+        
+        <form method="POST" class="setup-form">
+            <div class="form-group">
+                <label for="username">
+                    <i class="fas fa-user"></i> 管理员用户名
+                </label>
+                <input type="text" id="username" name="username" required 
+                       placeholder="请输入管理员用户名" class="form-control" autofocus>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">
+                    <i class="fas fa-lock"></i> 密码
+                </label>
+                <input type="password" id="password" name="password" required 
+                       placeholder="请输入密码（至少6位）" minlength="6" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="confirm_password">
+                    <i class="fas fa-lock"></i> 确认密码
+                </label>
+                <input type="password" id="confirm_password" name="confirm_password" required 
+                       placeholder="请再次输入密码" class="form-control">
+            </div>
+            
+            <div class="form-group">
+                <label for="site_title">
+                    <i class="fas fa-heading"></i> 站点标题
+                </label>
+                <input type="text" id="site_title" name="site_title" 
+                       value="OpenRate" class="form-control">
+                <small class="form-text">将显示在导航栏的站点名称</small>
+            </div>
+            
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary btn-block">
+                    <i class="fas fa-check"></i> 完成初始化
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+.setup-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - 120px);
+    padding: 20px;
+}
+.setup-card {
+    background-color: var(--card-bg);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: 100%;
+    max-width: 500px;
+    border: 1px solid var(--border-color);
+}
+.setup-header {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 30px;
+    text-align: center;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.setup-header h2 {
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+.setup-form {
+    padding: 30px;
+}
+</style>
+{% endblock %}
